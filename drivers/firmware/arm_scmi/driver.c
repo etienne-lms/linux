@@ -904,6 +904,9 @@ static const struct of_device_id scmi_of_match[] = {
 #ifdef CONFIG_ARM_PSCI_FW
 	{ .compatible = "arm,scmi-smc", .data = &scmi_smc_desc},
 #endif
+#ifdef CONFIG_OPTEE
+	{ .compatible = "linaro,scmi-optee", .data = &scmi_optee_desc },
+#endif
 	{ /* Sentinel */ },
 };
 
