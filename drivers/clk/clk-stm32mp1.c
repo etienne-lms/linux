@@ -5,6 +5,7 @@
  * Author: Gabriel Fernandez <gabriel.fernandez@st.com> for STMicroelectronics.
  */
 
+#include <linux/bits.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
@@ -325,7 +326,8 @@ struct clock_config {
 				const struct clock_config *cfg);
 };
 
-#define NO_ID ~0
+#define NO_ID		GENMASK(30, 0)
+#define SECURE		BIT(31)
 
 struct gate_cfg {
 	u32 reg_off;
@@ -1658,25 +1660,38 @@ static const struct stm32_mux_cfg ker_mux_cfg[M_LAST] = {
 	K_MUX(M_SPI6, RCC_SPI6CKSELR, 0, 3, 0),
 };
 
+/*
+ * On stm32mp15x, when TZEN is enabled, secure firmware provides
+ * the secure clocks RCC clock driver relies on. Firmware registers
+ * the following clocks in the Linux clock tree:
+ * "ck_hse", "ck_hsi", "ck_csi", "ck_lse", "ck_lsi",
+ * "pll2_q", "pll2_r", "ck_mpu", "ck_axi",
+ * "bsec", "cryp1", "gpioz", "hash1", "i2c4_k", "i2c6_k", "iwdg1", "rng1_k",
+ * "ck_rtc", "rtcapb", "spi6_k" and "usart1_k".
+ * For these clocks and there dependencies, SECURE bit is set in clock
+ * identifier field id to state which clocks RCC clock driver does not register
+ * because it has limited or no access to.
+ */
 static const struct clock_config stm32mp1_clock_cfg[] = {
 	/* Oscillator divider */
-	DIV(NO_ID, "clk-hsi-div", "clk-hsi", CLK_DIVIDER_POWER_OF_TWO,
+	DIV(NO_ID | SECURE, "clk-hsi-div", "clk-hsi", CLK_DIVIDER_POWER_OF_TWO,
 	    RCC_HSICFGR, 0, 2, CLK_DIVIDER_READ_ONLY),
 
-	/*  External / Internal Oscillators */
-	GATE_MP1(CK_HSE, "ck_hse", "clk-hse", 0, RCC_OCENSETR, 8, 0),
+	/* External / Internal Oscillators */
+	GATE_MP1(CK_HSE | SECURE, "ck_hse", "clk-hse", 0, RCC_OCENSETR, 8, 0),
 	/* ck_csi is used by IO compensation and should be critical */
-	GATE_MP1(CK_CSI, "ck_csi", "clk-csi", CLK_IS_CRITICAL,
+	GATE_MP1(CK_CSI | SECURE, "ck_csi", "clk-csi", CLK_IS_CRITICAL,
 		 RCC_OCENSETR, 4, 0),
-	GATE_MP1(CK_HSI, "ck_hsi", "clk-hsi-div", 0, RCC_OCENSETR, 0, 0),
-	GATE(CK_LSI, "ck_lsi", "clk-lsi", 0, RCC_RDLSICR, 0, 0),
-	GATE(CK_LSE, "ck_lse", "clk-lse", 0, RCC_BDCR, 0, 0),
+	GATE_MP1(CK_HSI | SECURE, "ck_hsi", "clk-hsi-div", 0,
+		 RCC_OCENSETR, 0, 0),
+	GATE(CK_LSI | SECURE, "ck_lsi", "clk-lsi", 0, RCC_RDLSICR, 0, 0),
+	GATE(CK_LSE | SECURE, "ck_lse", "clk-lse", 0, RCC_BDCR, 0, 0),
 
 	FIXED_FACTOR(CK_HSE_DIV2, "clk-hse-div2", "ck_hse", 0, 1, 2),
 
-	/* ref clock pll */
-	MUX(NO_ID, "ref1", ref12_parents, CLK_OPS_PARENT_ENABLE, RCC_RCK12SELR,
-	    0, 2, CLK_MUX_READ_ONLY),
+	/* Reference for PLL clocks */
+	MUX(NO_ID | SECURE, "ref1", ref12_parents, CLK_OPS_PARENT_ENABLE,
+	    RCC_RCK12SELR, 0, 2, CLK_MUX_READ_ONLY),
 
 	MUX(NO_ID, "ref3", ref3_parents, CLK_OPS_PARENT_ENABLE, RCC_RCK3SELR,
 	    0, 2, CLK_MUX_READ_ONLY),
@@ -1685,28 +1700,28 @@ static const struct clock_config stm32mp1_clock_cfg[] = {
 	    0, 2, CLK_MUX_READ_ONLY),
 
 	/* PLLs */
-	PLL(PLL1, "pll1", "ref1", CLK_IGNORE_UNUSED, RCC_PLL1CR),
-	PLL(PLL2, "pll2", "ref1", CLK_IGNORE_UNUSED, RCC_PLL2CR),
+	PLL(PLL1 | SECURE, "pll1", "ref1", CLK_IGNORE_UNUSED, RCC_PLL1CR),
+	PLL(PLL2 | SECURE, "pll2", "ref1", CLK_IGNORE_UNUSED, RCC_PLL2CR),
 	PLL(PLL3, "pll3", "ref3", CLK_IGNORE_UNUSED, RCC_PLL3CR),
 	PLL(PLL4, "pll4", "ref4", CLK_IGNORE_UNUSED, RCC_PLL4CR),
 
 	/* ODF */
-	COMPOSITE(PLL1_P, "pll1_p", PARENT("pll1"), 0,
+	COMPOSITE(PLL1_P | SECURE, "pll1_p", PARENT("pll1"), 0,
 		  _GATE(RCC_PLL1CR, 4, 0),
 		  _NO_MUX,
 		  _DIV(RCC_PLL1CFGR2, 0, 7, 0, NULL)),
 
-	COMPOSITE(PLL2_P, "pll2_p", PARENT("pll2"), 0,
+	COMPOSITE(PLL2_P | SECURE, "pll2_p", PARENT("pll2"), 0,
 		  _GATE(RCC_PLL2CR, 4, 0),
 		  _NO_MUX,
 		  _DIV(RCC_PLL2CFGR2, 0, 7, 0, NULL)),
 
-	COMPOSITE(PLL2_Q, "pll2_q", PARENT("pll2"), 0,
+	COMPOSITE(PLL2_Q | SECURE, "pll2_q", PARENT("pll2"), 0,
 		  _GATE(RCC_PLL2CR, 5, 0),
 		  _NO_MUX,
 		  _DIV(RCC_PLL2CFGR2, 8, 7, 0, NULL)),
 
-	COMPOSITE(PLL2_R, "pll2_r", PARENT("pll2"), CLK_IS_CRITICAL,
+	COMPOSITE(PLL2_R | SECURE, "pll2_r", PARENT("pll2"), CLK_IS_CRITICAL,
 		  _GATE(RCC_PLL2CR, 6, 0),
 		  _NO_MUX,
 		  _DIV(RCC_PLL2CFGR2, 16, 7, 0, NULL)),
@@ -1745,20 +1760,20 @@ static const struct clock_config stm32mp1_clock_cfg[] = {
 	MUX(CK_PER, "ck_per", per_src, CLK_OPS_PARENT_ENABLE,
 	    RCC_CPERCKSELR, 0, 2, 0),
 
-	MUX(CK_MPU, "ck_mpu", cpu_src, CLK_OPS_PARENT_ENABLE |
-	     CLK_IS_CRITICAL, RCC_MPCKSELR, 0, 2, 0),
+	MUX(CK_MPU | SECURE, "ck_mpu", cpu_src,
+	    CLK_OPS_PARENT_ENABLE | CLK_IS_CRITICAL, RCC_MPCKSELR, 0, 2, 0),
 
-	COMPOSITE(CK_AXI, "ck_axi", axi_src, CLK_IS_CRITICAL |
-		   CLK_OPS_PARENT_ENABLE,
-		   _NO_GATE,
-		   _MUX(RCC_ASSCKSELR, 0, 2, 0),
-		   _DIV(RCC_AXIDIVR, 0, 3, 0, axi_div_table)),
+	COMPOSITE(CK_AXI | SECURE, "ck_axi", axi_src,
+		  CLK_IS_CRITICAL | CLK_OPS_PARENT_ENABLE,
+		  _NO_GATE,
+		  _MUX(RCC_ASSCKSELR, 0, 2, 0),
+		  _DIV(RCC_AXIDIVR, 0, 3, 0, axi_div_table)),
 
-	COMPOSITE(CK_MCU, "ck_mcu", mcu_src, CLK_IS_CRITICAL |
-		   CLK_OPS_PARENT_ENABLE,
-		   _NO_GATE,
-		   _MUX(RCC_MSSCKSELR, 0, 2, 0),
-		   _DIV(RCC_MCUDIVR, 0, 4, 0, mcu_div_table)),
+	COMPOSITE(CK_MCU, "ck_mcu", mcu_src,
+		  CLK_IS_CRITICAL | CLK_OPS_PARENT_ENABLE,
+		  _NO_GATE,
+		  _MUX(RCC_MSSCKSELR, 0, 2, 0),
+		  _DIV(RCC_MCUDIVR, 0, 4, 0, mcu_div_table)),
 
 	DIV_TABLE(NO_ID, "pclk1", "ck_mcu", CLK_IGNORE_UNUSED, RCC_APB1DIVR, 0,
 		  3, CLK_DIVIDER_READ_ONLY, apb_div_table),
@@ -1850,18 +1865,18 @@ static const struct clock_config stm32mp1_clock_cfg[] = {
 	PCLK(IWDG2, "iwdg2", "pclk4", 0, G_IWDG2),
 	PCLK(USBPHY, "usbphy", "pclk4", 0, G_USBPHY),
 	PCLK(STGENRO, "stgenro", "pclk4", 0, G_STGENRO),
-	PCLK(SPI6, "spi6", "pclk5", 0, G_SPI6),
-	PCLK(I2C4, "i2c4", "pclk5", 0, G_I2C4),
-	PCLK(I2C6, "i2c6", "pclk5", 0, G_I2C6),
-	PCLK(USART1, "usart1", "pclk5", 0, G_USART1),
-	PCLK(RTCAPB, "rtcapb", "pclk5", CLK_IGNORE_UNUSED |
-	     CLK_IS_CRITICAL, G_RTCAPB),
-	PCLK(TZC1, "tzc1", "ck_axi", CLK_IGNORE_UNUSED, G_TZC1),
-	PCLK(TZC2, "tzc2", "ck_axi", CLK_IGNORE_UNUSED, G_TZC2),
-	PCLK(TZPC, "tzpc", "pclk5", CLK_IGNORE_UNUSED, G_TZPC),
-	PCLK(IWDG1, "iwdg1", "pclk5", 0, G_IWDG1),
-	PCLK(BSEC, "bsec", "pclk5", CLK_IGNORE_UNUSED, G_BSEC),
-	PCLK(STGEN, "stgen", "pclk5", CLK_IGNORE_UNUSED, G_STGEN),
+	PCLK(SPI6 | SECURE, "spi6", "pclk5", 0, G_SPI6),
+	PCLK(I2C4 | SECURE, "i2c4", "pclk5", 0, G_I2C4),
+	PCLK(I2C6 | SECURE, "i2c6", "pclk5", 0, G_I2C6),
+	PCLK(USART1 | SECURE, "usart1", "pclk5", 0, G_USART1),
+	PCLK(RTCAPB | SECURE, "rtcapb", "pclk5",
+	     CLK_IGNORE_UNUSED | CLK_IS_CRITICAL, G_RTCAPB),
+	PCLK(TZC1 | SECURE, "tzc1", "ck_axi", CLK_IGNORE_UNUSED, G_TZC1),
+	PCLK(TZC2 | SECURE, "tzc2", "ck_axi", CLK_IGNORE_UNUSED, G_TZC2),
+	PCLK(TZPC | SECURE, "tzpc", "pclk5", CLK_IGNORE_UNUSED, G_TZPC),
+	PCLK(IWDG1 | SECURE, "iwdg1", "pclk5", 0, G_IWDG1),
+	PCLK(BSEC | SECURE, "bsec", "pclk5", CLK_IGNORE_UNUSED, G_BSEC),
+	PCLK(STGEN | SECURE, "stgen", "pclk5", CLK_IGNORE_UNUSED, G_STGEN),
 	PCLK(DMA1, "dma1", "ck_mcu", 0, G_DMA1),
 	PCLK(DMA2, "dma2", "ck_mcu",  0, G_DMA2),
 	PCLK(DMAMUX, "dmamux", "ck_mcu", 0, G_DMAMUX),
@@ -1886,11 +1901,12 @@ static const struct clock_config stm32mp1_clock_cfg[] = {
 	PCLK(GPIOI, "gpioi", "ck_mcu", 0, G_GPIOI),
 	PCLK(GPIOJ, "gpioj", "ck_mcu", 0, G_GPIOJ),
 	PCLK(GPIOK, "gpiok", "ck_mcu", 0, G_GPIOK),
-	PCLK(GPIOZ, "gpioz", "ck_axi", CLK_IGNORE_UNUSED, G_GPIOZ),
-	PCLK(CRYP1, "cryp1", "ck_axi", CLK_IGNORE_UNUSED, G_CRYP1),
-	PCLK(HASH1, "hash1", "ck_axi", CLK_IGNORE_UNUSED, G_HASH1),
-	PCLK(RNG1, "rng1", "ck_axi", 0, G_RNG1),
-	PCLK(BKPSRAM, "bkpsram", "ck_axi", CLK_IGNORE_UNUSED, G_BKPSRAM),
+	PCLK(GPIOZ | SECURE, "gpioz", "ck_axi", CLK_IGNORE_UNUSED, G_GPIOZ),
+	PCLK(CRYP1 | SECURE, "cryp1", "ck_axi", CLK_IGNORE_UNUSED, G_CRYP1),
+	PCLK(HASH1 | SECURE, "hash1", "ck_axi", CLK_IGNORE_UNUSED, G_HASH1),
+	PCLK(RNG1 | SECURE, "rng1", "ck_axi", 0, G_RNG1),
+	PCLK(BKPSRAM | SECURE, "bkpsram", "ck_axi", CLK_IGNORE_UNUSED,
+	     G_BKPSRAM),
 	PCLK(MDMA, "mdma", "ck_axi", 0, G_MDMA),
 	PCLK(GPU, "gpu", "ck_axi", 0, G_GPU),
 	PCLK(ETHTX, "ethtx", "ck_axi", 0, G_ETHTX),
@@ -1911,30 +1927,31 @@ static const struct clock_config stm32mp1_clock_cfg[] = {
 	KCLK(SDMMC3_K, "sdmmc3_k", sdmmc3_src, 0, G_SDMMC3, M_SDMMC3),
 	KCLK(FMC_K, "fmc_k", fmc_src, 0, G_FMC, M_FMC),
 	KCLK(QSPI_K, "qspi_k", qspi_src, 0, G_QSPI, M_QSPI),
-	KCLK(RNG1_K, "rng1_k", rng_src, 0, G_RNG1, M_RNG1),
+	KCLK(RNG1_K | SECURE, "rng1_k", rng_src, 0, G_RNG1, M_RNG1),
 	KCLK(RNG2_K, "rng2_k", rng_src, 0, G_RNG2, M_RNG2),
 	KCLK(USBPHY_K, "usbphy_k", usbphy_src, 0, G_USBPHY, M_USBPHY),
-	KCLK(STGEN_K, "stgen_k", stgen_src, CLK_IS_CRITICAL, G_STGEN, M_STGEN),
+	KCLK(STGEN_K | SECURE, "stgen_k", stgen_src, CLK_IS_CRITICAL,
+	     G_STGEN, M_STGEN),
 	KCLK(SPDIF_K, "spdif_k", spdif_src, 0, G_SPDIF, M_SPDIF),
 	KCLK(SPI1_K, "spi1_k", spi123_src, 0, G_SPI1, M_SPI1),
 	KCLK(SPI2_K, "spi2_k", spi123_src, 0, G_SPI2, M_SPI23),
 	KCLK(SPI3_K, "spi3_k", spi123_src, 0, G_SPI3, M_SPI23),
 	KCLK(SPI4_K, "spi4_k", spi45_src, 0, G_SPI4, M_SPI45),
 	KCLK(SPI5_K, "spi5_k", spi45_src, 0, G_SPI5, M_SPI45),
-	KCLK(SPI6_K, "spi6_k", spi6_src, 0, G_SPI6, M_SPI6),
+	KCLK(SPI6_K | SECURE, "spi6_k", spi6_src, 0, G_SPI6, M_SPI6),
 	KCLK(CEC_K, "cec_k", cec_src, 0, G_CEC, M_CEC),
 	KCLK(I2C1_K, "i2c1_k", i2c12_src, 0, G_I2C1, M_I2C12),
 	KCLK(I2C2_K, "i2c2_k", i2c12_src, 0, G_I2C2, M_I2C12),
 	KCLK(I2C3_K, "i2c3_k", i2c35_src, 0, G_I2C3, M_I2C35),
 	KCLK(I2C5_K, "i2c5_k", i2c35_src, 0, G_I2C5, M_I2C35),
-	KCLK(I2C4_K, "i2c4_k", i2c46_src, 0, G_I2C4, M_I2C46),
-	KCLK(I2C6_K, "i2c6_k", i2c46_src, 0, G_I2C6, M_I2C46),
+	KCLK(I2C4_K | SECURE, "i2c4_k", i2c46_src, 0, G_I2C4, M_I2C46),
+	KCLK(I2C6_K | SECURE, "i2c6_k", i2c46_src, 0, G_I2C6, M_I2C46),
 	KCLK(LPTIM1_K, "lptim1_k", lptim1_src, 0, G_LPTIM1, M_LPTIM1),
 	KCLK(LPTIM2_K, "lptim2_k", lptim23_src, 0, G_LPTIM2, M_LPTIM23),
 	KCLK(LPTIM3_K, "lptim3_k", lptim23_src, 0, G_LPTIM3, M_LPTIM23),
 	KCLK(LPTIM4_K, "lptim4_k", lptim45_src, 0, G_LPTIM4, M_LPTIM45),
 	KCLK(LPTIM5_K, "lptim5_k", lptim45_src, 0, G_LPTIM5, M_LPTIM45),
-	KCLK(USART1_K, "usart1_k", usart1_src, 0, G_USART1, M_USART1),
+	KCLK(USART1_K | SECURE, "usart1_k", usart1_src, 0, G_USART1, M_USART1),
 	KCLK(USART2_K, "usart2_k", usart234578_src, 0, G_USART2, M_UART24),
 	KCLK(USART3_K, "usart3_k", usart234578_src, 0, G_USART3, M_UART35),
 	KCLK(UART4_K, "uart4_k", usart234578_src, 0, G_UART4, M_UART24),
@@ -1967,10 +1984,10 @@ static const struct clock_config stm32mp1_clock_cfg[] = {
 		  _DIV(RCC_ETHCKSELR, 4, 4, 0, NULL)),
 
 	/* RTC clock */
-	DIV(NO_ID, "ck_hse_rtc", "ck_hse", 0, RCC_RTCDIVR, 0, 6, 0),
+	DIV(NO_ID | SECURE, "ck_hse_rtc", "ck_hse", 0, RCC_RTCDIVR, 0, 6, 0),
 
-	COMPOSITE(RTC, "ck_rtc", rtc_src, CLK_OPS_PARENT_ENABLE |
-		   CLK_SET_RATE_PARENT,
+	COMPOSITE(RTC | SECURE, "ck_rtc", rtc_src, CLK_OPS_PARENT_ENABLE |
+		  CLK_SET_RATE_PARENT,
 		  _GATE(RCC_BDCR, 20, 0),
 		  _MUX(RCC_BDCR, 16, 2, 0),
 		  _NO_DIV),
@@ -2002,18 +2019,31 @@ struct stm32_clock_match_data {
 	const struct clock_config *cfg;
 	unsigned int num;
 	unsigned int maxbinding;
+	bool rcc_is_secure;
 };
 
 static struct stm32_clock_match_data stm32mp1_data = {
 	.cfg		= stm32mp1_clock_cfg,
 	.num		= ARRAY_SIZE(stm32mp1_clock_cfg),
 	.maxbinding	= STM32MP1_LAST_CLK,
+	.rcc_is_secure	= false,
+};
+
+static struct stm32_clock_match_data stm32mp1_data_secure = {
+	.cfg		= stm32mp1_clock_cfg,
+	.num		= ARRAY_SIZE(stm32mp1_clock_cfg),
+	.maxbinding	= STM32MP1_LAST_CLK,
+	.rcc_is_secure	= true,
 };
 
 static const struct of_device_id stm32mp1_match_data[] = {
 	{
 		.compatible = "st,stm32mp1-rcc",
 		.data = &stm32mp1_data,
+	},
+	{
+		.compatible = "st,stm32mp1-rcc-secure",
+		.data = &stm32mp1_data_secure,
 	},
 	{ }
 };
@@ -2076,6 +2106,9 @@ static int stm32_rcc_init(struct device_node *np,
 		hws[n] = ERR_PTR(-ENOENT);
 
 	for (n = 0; n < data->num; n++) {
+		if (data->rcc_is_secure && (data->cfg[n].id & SECURE))
+			continue;
+
 		err = stm32_register_hw_clk(NULL, clk_data, base, &rlock,
 					    &data->cfg[n]);
 		if (err) {
@@ -2116,9 +2149,45 @@ out:
 	return ret;
 }
 
+static int get_clock_deps(struct device *dev)
+{
+	const char *clock_deps_name[] = {
+		"hsi", "hse", "csi", "lsi", "lse",
+	};
+	size_t deps_size = sizeof(struct clk *) * ARRAY_SIZE(clock_deps_name);
+	struct clk **clk_deps;
+	int i;
+
+	clk_deps = devm_kzalloc(dev, deps_size, GFP_KERNEL);
+	if (!clk_deps)
+		return -ENOMEM;
+
+	for (i = 0; i < ARRAY_SIZE(clock_deps_name); i++) {
+		struct clk *clk = of_clk_get_by_name(dev_of_node(dev),
+						     clock_deps_name[i]);
+
+		if (IS_ERR(clk)) {
+			if (PTR_ERR(clk) != -EINVAL && PTR_ERR(clk) != -ENOENT)
+				return PTR_ERR(clk);
+		} else {
+			/* Device gets a reference count on the clock */
+			clk_deps[i] = devm_clk_get(dev, __clk_get_name(clk));
+			clk_put(clk);
+		}
+	}
+
+	return 0;
+}
+
 static int stm32mp1_rcc_clocks_probe(struct platform_device *pdev)
 {
-	return stm32mp1_rcc_init(dev_of_node(&pdev->dev));
+	struct device *dev = &pdev->dev;
+	int ret = get_clock_deps(dev);
+
+	if (!ret)
+		ret = stm32mp1_rcc_init(dev_of_node(dev));
+
+	return ret;
 }
 
 static int stm32mp1_rcc_clocks_remove(struct platform_device *pdev)
