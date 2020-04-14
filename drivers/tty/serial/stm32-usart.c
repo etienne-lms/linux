@@ -1064,19 +1064,11 @@ static int stm32_of_dma_rx_probe(struct stm32_port *stm32port,
 	dma_cookie_t cookie;
 	int ret;
 
-	/* Request DMA RX channel */
-	stm32port->rx_ch = dma_request_slave_channel(dev, "rx");
-	if (!stm32port->rx_ch) {
-		dev_info(dev, "rx dma alloc failed\n");
-		return -ENODEV;
-	}
 	stm32port->rx_buf = dma_alloc_coherent(&pdev->dev, RX_BUF_L,
 						 &stm32port->rx_dma_buf,
 						 GFP_KERNEL);
-	if (!stm32port->rx_buf) {
-		ret = -ENOMEM;
-		goto alloc_err;
-	}
+	if (!stm32port->rx_buf)
+		goto err;
 
 	/* Configure DMA channel */
 	memset(&config, 0, sizeof(config));
@@ -1086,8 +1078,7 @@ static int stm32_of_dma_rx_probe(struct stm32_port *stm32port,
 	ret = dmaengine_slave_config(stm32port->rx_ch, &config);
 	if (ret < 0) {
 		dev_err(dev, "rx dma channel config failed\n");
-		ret = -ENODEV;
-		goto config_err;
+		goto err_alloc;
 	}
 
 	/* Prepare a DMA cyclic transaction */
@@ -1097,8 +1088,7 @@ static int stm32_of_dma_rx_probe(struct stm32_port *stm32port,
 					 DMA_PREP_INTERRUPT);
 	if (!desc) {
 		dev_err(dev, "rx dma prep cyclic failed\n");
-		ret = -ENODEV;
-		goto config_err;
+		goto err_alloc;
 	}
 
 	/* No callback as dma buffer is drained on usart interrupt */
@@ -1107,22 +1097,24 @@ static int stm32_of_dma_rx_probe(struct stm32_port *stm32port,
 
 	/* Push current DMA transaction in the pending queue */
 	cookie = dmaengine_submit(desc);
+	ret = dma_submit_error(cookie);
+	if (ret) {
+		dmaengine_terminate_sync(stm32port->rx_ch);
+		goto err_alloc;
+	}
 
 	/* Issue pending DMA requests */
 	dma_async_issue_pending(stm32port->rx_ch);
 
 	return 0;
 
-config_err:
+err_alloc:
 	dma_free_coherent(&pdev->dev,
 			  RX_BUF_L, stm32port->rx_buf,
 			  stm32port->rx_dma_buf);
 
-alloc_err:
-	dma_release_channel(stm32port->rx_ch);
-	stm32port->rx_ch = NULL;
-
-	return ret;
+err:
+	return -ENOTSUPP;
 }
 
 static int stm32_of_dma_tx_probe(struct stm32_port *stm32port,
@@ -1136,19 +1128,11 @@ static int stm32_of_dma_tx_probe(struct stm32_port *stm32port,
 
 	stm32port->tx_dma_busy = false;
 
-	/* Request DMA TX channel */
-	stm32port->tx_ch = dma_request_slave_channel(dev, "tx");
-	if (!stm32port->tx_ch) {
-		dev_info(dev, "tx dma alloc failed\n");
-		return -ENODEV;
-	}
 	stm32port->tx_buf = dma_alloc_coherent(&pdev->dev, TX_BUF_L,
 						 &stm32port->tx_dma_buf,
 						 GFP_KERNEL);
-	if (!stm32port->tx_buf) {
-		ret = -ENOMEM;
-		goto alloc_err;
-	}
+	if (!stm32port->tx_buf)
+		goto err;
 
 	/* Configure DMA channel */
 	memset(&config, 0, sizeof(config));
@@ -1158,22 +1142,18 @@ static int stm32_of_dma_tx_probe(struct stm32_port *stm32port,
 	ret = dmaengine_slave_config(stm32port->tx_ch, &config);
 	if (ret < 0) {
 		dev_err(dev, "tx dma channel config failed\n");
-		ret = -ENODEV;
-		goto config_err;
+		goto err_alloc;
 	}
 
 	return 0;
 
-config_err:
+err_alloc:
 	dma_free_coherent(&pdev->dev,
 			  TX_BUF_L, stm32port->tx_buf,
 			  stm32port->tx_dma_buf);
 
-alloc_err:
-	dma_release_channel(stm32port->tx_ch);
-	stm32port->tx_ch = NULL;
-
-	return ret;
+err:
+	return -ENOTSUPP;
 }
 
 static int stm32_serial_probe(struct platform_device *pdev)
@@ -1213,13 +1193,40 @@ static int stm32_serial_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_wirq;
 
-	ret = stm32_of_dma_rx_probe(stm32port, pdev);
-	if (ret)
-		dev_info(&pdev->dev, "interrupt mode used for rx (no dma)\n");
+	stm32port->rx_ch = dma_request_chan(&pdev->dev, "rx");
+	if (PTR_ERR(stm32port->rx_ch) == -EPROBE_DEFER) {
+		ret = -EPROBE_DEFER;
+		goto err_port;
+	}
+	/* Fall back in interrupt mode for any non-deferral error */
+	if (IS_ERR(stm32port->rx_ch))
+		stm32port->rx_ch = NULL;
 
-	ret = stm32_of_dma_tx_probe(stm32port, pdev);
-	if (ret)
-		dev_info(&pdev->dev, "interrupt mode used for tx (no dma)\n");
+	stm32port->tx_ch = dma_request_chan(&pdev->dev, "tx");
+	if (PTR_ERR(stm32port->tx_ch) == -EPROBE_DEFER) {
+		ret = -EPROBE_DEFER;
+		goto err_dma_rx;
+	}
+	/* Fall back in interrupt mode for any non-deferral error */
+	if (IS_ERR(stm32port->tx_ch))
+		stm32port->tx_ch = NULL;
+
+	if (stm32port->rx_ch && stm32_of_dma_rx_probe(stm32port, pdev)) {
+		/* Fall back in interrupt mode */
+		dma_release_channel(stm32port->rx_ch);
+		stm32port->rx_ch = NULL;
+	}
+
+	if (stm32port->tx_ch && stm32_of_dma_tx_probe(stm32port, pdev)) {
+		/* Fall back in interrupt mode */
+		dma_release_channel(stm32port->tx_ch);
+		stm32port->tx_ch = NULL;
+	}
+
+	if (!stm32port->rx_ch)
+		dev_info(&pdev->dev, "interrupt mode for rx (no dma)\n");
+	if (!stm32port->tx_ch)
+		dev_info(&pdev->dev, "interrupt mode for tx (no dma)\n");
 
 	platform_set_drvdata(pdev, &stm32port->port);
 
@@ -1229,6 +1236,13 @@ static int stm32_serial_probe(struct platform_device *pdev)
 	pm_runtime_put_sync(&pdev->dev);
 
 	return 0;
+
+err_dma_rx:
+	if (stm32port->rx_ch)
+		dma_release_channel(stm32port->rx_ch);
+
+err_port:
+	uart_remove_one_port(&stm32_usart_driver, &stm32port->port);
 
 err_wirq:
 	if (stm32port->wakeirq > 0)
