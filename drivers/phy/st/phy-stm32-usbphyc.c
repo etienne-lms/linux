@@ -341,8 +341,12 @@ static int stm32_usbphyc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	usbphyc->rst = devm_reset_control_get(dev, 0);
-	if (!IS_ERR(usbphyc->rst)) {
+	usbphyc->rst = devm_reset_control_get_optional(dev, 0);
+	if (IS_ERR(usbphyc->rst)) {
+		ret = PTR_ERR(usbphyc->rst);
+		goto clk_disable;
+	}
+	if (usbphyc->rst) {
 		reset_control_assert(usbphyc->rst);
 		udelay(2);
 		reset_control_deassert(usbphyc->rst);
