@@ -70,6 +70,11 @@
 			reg = <0xe8000000 0x8000000>;
 			no-map;
 		};
+
+		optee_memory: optee@0xfe000000 {
+			reg = <0xfe000000 0x02000000>;
+			no-map;
+		};
 	};
 
 	aliases {
@@ -372,4 +377,8 @@
 	phy-supply = <&vdd_usb>;
 	vdda1v1-supply = <&reg11>;
 	vdda1v8-supply = <&reg18>;
+};
+
+&optee {
+	status = "okay";
 };

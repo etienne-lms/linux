@@ -24,6 +24,13 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
+
+	reserved-memory {
+		optee_memory: optee@0xde000000 {
+			reg = <0xde000000 0x02000000>;
+			no-map;
+		};
+	};
 };
 
 &dsi {
@@ -83,4 +90,8 @@
 			remote-endpoint = <&dsi_in>;
 		};
 	};
+};
+
+&optee {
+	status = "okay";
 };
