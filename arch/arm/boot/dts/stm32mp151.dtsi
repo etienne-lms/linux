@@ -41,11 +41,12 @@
 
 	firmware {
 		scmi0: scmi-0 {
-			compatible = "arm,scmi-smc";
+			compatible = "linaro,scmi-optee";
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			arm,smc-id = <0x82002000>;
+			agent-id = <0>;
+			/* Temporary rely on a static shared memory */
 			shmem = <&scmi0_shm>;
 
 			scmi0_clk: protocol@14 {
@@ -59,11 +60,12 @@
 		};
 
 		scmi1: scmi-1 {
-			compatible = "arm,scmi-smc";
+			compatible = "linaro,scmi-optee";
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			arm,smc-id = <0x82002001>;
+			agent-id = <1>;
+			/* Temporary rely on a static shared memory */
 			shmem = <&scmi1_shm>;
 
 			/* Default disable since stm32mp15x RCC[MCKPROT]=0 */
