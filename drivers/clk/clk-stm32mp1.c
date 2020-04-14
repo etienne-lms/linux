@@ -1242,7 +1242,7 @@ _clk_stm32_register_composite(struct device *dev,
 
 #define _DIV(_div_offset, _div_shift, _div_width, _div_flags, _div_table)\
 	_STM32_DIV(_div_offset, _div_shift, _div_width,\
-		   _div_flags, _div_table, NULL)\
+		   _div_flags, _div_table, NULL)
 
 #define _STM32_MUX(_offset, _shift, _width, _mux_flags, _mmux, _ops)\
 	.mux = &(struct stm32_mux_cfg) {\
@@ -1258,7 +1258,7 @@ _clk_stm32_register_composite(struct device *dev,
 	}
 
 #define _MUX(_offset, _shift, _width, _mux_flags)\
-	_STM32_MUX(_offset, _shift, _width, _mux_flags, NULL, NULL)\
+	_STM32_MUX(_offset, _shift, _width, _mux_flags, NULL, NULL)
 
 #define _MMUX(_mmux) .mux = &ker_mux_cfg[_mmux]
 
