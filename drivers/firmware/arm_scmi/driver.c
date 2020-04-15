@@ -261,13 +261,17 @@ void scmi_xfer_put(const struct scmi_handle *handle, struct scmi_xfer *xfer)
 
 #define SCMI_MAX_POLL_TO_NS	(100 * NSEC_PER_USEC)
 
-static bool scmi_xfer_done_no_timeout(struct scmi_chan_info *cinfo,
-				      struct scmi_xfer *xfer, ktime_t stop)
+static bool scmi_poll_done(struct scmi_chan_info *cinfo, struct scmi_xfer *xfer)
 {
 	struct scmi_info *info = handle_to_scmi_info(cinfo->handle);
 
-	return info->desc->ops->poll_done(cinfo, xfer) ||
-	       ktime_after(ktime_get(), stop);
+	return info->desc->ops->poll_done(cinfo, xfer);
+}
+
+static bool scmi_xfer_done_no_timeout(struct scmi_chan_info *cinfo,
+				      struct scmi_xfer *xfer, ktime_t stop)
+{
+	return scmi_poll_done(cinfo, xfer) || ktime_after(ktime_get(), stop);
 }
 
 /**
@@ -297,7 +301,7 @@ int scmi_do_xfer(const struct scmi_handle *handle, struct scmi_xfer *xfer)
 			      xfer->hdr.poll_completion);
 
 	ret = info->desc->ops->send_message(cinfo, xfer);
-	if (ret < 0) {
+	if (ret) {
 		dev_dbg(dev, "Failed to send message %d\n", ret);
 		return ret;
 	}
@@ -307,7 +311,7 @@ int scmi_do_xfer(const struct scmi_handle *handle, struct scmi_xfer *xfer)
 
 		spin_until_cond(scmi_xfer_done_no_timeout(cinfo, xfer, stop));
 
-		if (ktime_before(ktime_get(), stop))
+		if (scmi_poll_done(cinfo, xfer))
 			info->desc->ops->fetch_response(cinfo, xfer);
 		else
 			ret = -ETIMEDOUT;
@@ -566,6 +570,14 @@ static int scmi_xfer_info_init(struct scmi_info *sinfo)
 	return 0;
 }
 
+/* SCMI root node has no reg property */
+static bool node_is_scmi_root_node(const struct device_node *np)
+{
+	u32 protocol_id;
+
+	return of_property_read_u32(np, "reg", &protocol_id);
+}
+
 static int scmi_chan_setup(struct scmi_info *info, struct device *dev,
 			   int prot_id, bool tx)
 {
@@ -582,7 +594,8 @@ static int scmi_chan_setup(struct scmi_info *info, struct device *dev,
 	if (cinfo)
 		return 0;
 
-	if (!info->desc->ops->chan_available(dev, idx)) {
+	/* Channels are defined in SCMI device root node */
+	if (!node_is_scmi_root_node(dev->of_node)) {
 		cinfo = idr_find(idr, SCMI_PROTOCOL_BASE);
 		if (unlikely(!cinfo)) /* Possible only if platform has no Rx */
 			return -EINVAL;
@@ -826,7 +839,15 @@ ATTRIBUTE_GROUPS(versions);
 
 /* Each compatible listed below must have descriptor associated with it */
 static const struct of_device_id scmi_of_match[] = {
+#ifdef CONFIG_MAILBOX
 	{ .compatible = "arm,scmi", .data = &scmi_mailbox_desc },
+#endif
+#ifdef CONFIG_HAVE_ARM_SMCCC
+	{ .compatible = "arm,scmi-smc", .data = &scmi_smc_desc},
+#endif
+#ifdef CONFIG_OPTEE
+	{ .compatible = "arm,scmi-optee", .data = &scmi_optee_desc },
+#endif
 	{ /* Sentinel */ },
 };
 

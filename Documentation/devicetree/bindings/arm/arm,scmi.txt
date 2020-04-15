@@ -10,21 +10,44 @@ the SCMI as described in ARM document number ARM DEN 0056A ("ARM System Control
 and Management Interface Platform Design Document")[0] provide for OSPM in
 the device tree.
 
-Required properties:
+The SCMI agent node with its properties shall be under the /firmware/ node.
 
-The scmi node with the following properties shall be under the /firmware/ node.
+Each protocol supported by an agent be defined by a sub-node in the SCMI
+agent node as described in the following sections.
 
-- compatible : shall be "arm,scmi"
-- mboxes: List of phandle and mailbox channel specifiers. It should contain
-	  exactly one or two mailboxes, one for transmitting messages("tx")
-	  and another optional for receiving the notifications("rx") if
-	  supported.
-- shmem : List of phandle pointing to the shared memory(SHM) area as per
-	  generic mailbox client binding.
+For a given SCMI agent node, the communication channel properties, as defined
+by related SCMI tranport compatible bindings, can be either defined in the
+root node of the SCMI device or in the subnode of the related SCMI protocol
+supported by the device. In the former case, the communcation propoerties
+are shared by all protocol. In the later case, each protocol node must
+define all communication configuration expected by the related transport
+channel.
+
+Required properties common to all SCMI agent node:
+
 - #address-cells : should be '1' if the device has sub-nodes, maps to
 	  protocol identifier for a given sub-node.
 - #size-cells : should be '0' as 'reg' property doesn't have any size
 	  associated with it.
+
+SCMI Agent over Mailbox transport channel
+-----------------------------------------
+
+SCMI messages can be exchange between agent and the SCMI server using a
+mailbox device for message notification and a piece of shared memory for
+message payload and protocol data transfer.
+
+Required properties:
+
+- compatible : "arm,scmi"
+
+- mboxes: List of phandle and mailbox channel specifiers. It should contain
+	  exactly one or two mailboxes, one for transmitting messages("tx")
+	  and another optional for receiving the notifications("rx") if
+	  supported.
+
+- shmem : List of phandle pointing to the shared memory(SHM) area as per
+	  generic mailbox client binding.
 
 Optional properties:
 
@@ -37,11 +60,42 @@ The mailbox is the only permitted method of calling the SCMI firmware.
 Mailbox doorbell is used as a mechanism to alert the presence of a
 messages and/or notification.
 
-Each protocol supported shall have a sub-node with corresponding compatible
-as described in the following sections. If the platform supports dedicated
-communication channel for a particular protocol, the 3 properties namely:
-mboxes, mbox-names and shmem shall be present in the sub-node corresponding
-to that protocol.
+SCMI Agent over Arm SMCCC transport channel
+-------------------------------------------
+
+On Arm based systems that support secure world invocation through secure
+monitor, SCMI messages can be exchange between agent and the SCMI server
+using an Arm SMC or HVC instruction for message notification and a piece
+of shared memory for message payload and protocol data transfer.
+
+Required properties:
+
+- compatible : "arm,scmi-smc"
+
+- shmem : List of phandle pointing to the shared memory(SHM) area as per
+	  generic mailbox client binding.
+
+- arm,smc-id : function identifier used a argument to the SMC/HVC instruction
+               as defined in Arm SMCCC specification [6].
+
+- method : "smc" or "hvc"
+            Optional property defining the conduit method for to be used
+	    for invoking the SCMI server in secure world.
+	    "smc" states instruction SMC #0 is used whereas "hvc" states
+	    instruction HVC #0 is used.
+
+SCMI Agent over on OP-TEE Service
+---------------------------------
+
+On systems that support OP-TEE, SCMI messages can be exchange between agent
+and the SCMI server using an OP-TEE invocation.
+
+Required properties:
+
+- compatible : "linaro,scmi-optee"
+
+- agent-id : agent identifier assigned to the agent/channel and known from
+	  the SCMI server in OP-TEE.
 
 Clock/Performance bindings for the clocks/OPPs based on SCMI Message Protocol
 ------------------------------------------------------------
@@ -104,6 +158,7 @@ Required sub-node properties:
 [3] Documentation/devicetree/bindings/thermal/thermal.txt
 [4] Documentation/devicetree/bindings/sram/sram.yaml
 [5] Documentation/devicetree/bindings/reset/reset.txt
+[6] https://developer.arm.com/docs/den0028/latest
 
 Example:
 

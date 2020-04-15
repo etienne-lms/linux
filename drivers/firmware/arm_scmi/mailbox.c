@@ -46,12 +46,6 @@ static void rx_callback(struct mbox_client *cl, void *m)
 	scmi_rx_callback(smbox->cinfo, shmem_read_header(smbox->shmem));
 }
 
-static bool mailbox_chan_available(struct device *dev, int idx)
-{
-	return !of_parse_phandle_with_args(dev->of_node, "mboxes",
-					   "#mbox-cells", idx, NULL);
-}
-
 static int mailbox_chan_setup(struct scmi_chan_info *cinfo, struct device *dev,
 			      bool tx)
 {
@@ -167,7 +161,6 @@ mailbox_poll_done(struct scmi_chan_info *cinfo, struct scmi_xfer *xfer)
 }
 
 static struct scmi_transport_ops scmi_mailbox_ops = {
-	.chan_available = mailbox_chan_available,
 	.chan_setup = mailbox_chan_setup,
 	.chan_free = mailbox_chan_free,
 	.send_message = mailbox_send_message,
