@@ -12,6 +12,8 @@
 			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&scmi0_clk CK_SCMI0_CRYP1>;
 			resets = <&scmi0_reset RST_SCMI0_CRYP1>;
+			secure-clocks = <&rcc CRYP1>;
+			secure-resets = <&rcc CRYP1_R>;
 			status = "disabled";
 		};
 	};
