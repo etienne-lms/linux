@@ -350,6 +350,7 @@
 			clocks = <&rcc TIM12_K>;
 			clock-names = "int";
 			status = "disabled";
+			secure-status = "disabled";
 
 			pwm {
 				compatible = "st,stm32-pwm";
@@ -503,6 +504,7 @@
 			reg = <0x4000e000 0x400>;
 			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc USART2_K>;
+			resets = <&rcc USART2_R>;
 			status = "disabled";
 		};
 
@@ -511,6 +513,7 @@
 			reg = <0x4000f000 0x400>;
 			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc USART3_K>;
+			resets = <&rcc USART3_R>;
 			status = "disabled";
 		};
 
@@ -519,6 +522,7 @@
 			reg = <0x40010000 0x400>;
 			interrupts = <GIC_SPI 52 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc UART4_K>;
+			resets = <&rcc UART4_R>;
 			status = "disabled";
 		};
 
@@ -527,6 +531,7 @@
 			reg = <0x40011000 0x400>;
 			interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc UART5_K>;
+			resets = <&rcc UART5_R>;
 			status = "disabled";
 		};
 
@@ -1339,6 +1344,7 @@
 			dma-names = "in";
 			dma-maxburst = <2>;
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		rng1: rng@54003000 {
@@ -1349,6 +1355,7 @@
 			secure-clocks = <&rcc RNG1_K>;
 			secure-resets = <&rcc RNG1_R>;
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		mdma1: dma-controller@58000000 {
@@ -1361,6 +1368,7 @@
 			#dma-cells = <5>;
 			dma-channels = <32>;
 			dma-requests = <48>;
+			secure-status = "disabled";
 		};
 
 		fmc: nand-controller@58002000 {
@@ -1496,10 +1504,12 @@
 		iwdg2: watchdog@5a002000 {
 			compatible = "st,stm32mp1-iwdg";
 			reg = <0x5a002000 0x400>;
+			secure-interrupts = <GIC_SPI 151 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc IWDG2>, <&scmi0_clk CK_SCMI0_LSI>;
 			secure-clocks = <&rcc IWDG2>, <&rcc CK_LSI>;
 			clock-names = "pclk", "lsi";
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		usbphyc: usbphyc@5a006000 {
@@ -1531,6 +1541,7 @@
 			secure-clocks = <&rcc USART1_K>;
 			secure-resets = <&rcc USART1_R>;
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		spi6: spi@5c001000 {
@@ -1547,6 +1558,7 @@
 			       <&mdma1 35 0x0 0x40002 0x0 0x0>;
 			dma-names = "rx", "tx";
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		i2c4: i2c@5c002000 {
@@ -1563,6 +1575,17 @@
 			#size-cells = <0>;
 			wakeup-source;
 			status = "disabled";
+			secure-status = "disabled";
+		};
+
+		iwdg1: watchdog@5c003000 {
+			compatible = "st,stm32mp1-iwdg";
+			reg = <0x5C003000 0x400>;
+			seecure-interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>;
+			secure-clocks = <&rcc IWDG1>, <&rcc CK_LSI>;
+			clock-names = "pclk", "lsi";
+			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		rtc: rtc@5c004000 {
@@ -1574,6 +1597,7 @@
 			clock-names = "pclk", "rtc_ck";
 			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		bsec: efuse@5c005000 {
@@ -1617,6 +1641,7 @@
 			#size-cells = <0>;
 			wakeup-source;
 			status = "disabled";
+			secure-status = "disabled";
 		};
 
 		/*
@@ -1774,6 +1799,7 @@
 				st,bank-name = "GPIOZ";
 				st,bank-ioport = <11>;
 				status = "disabled";
+				secure-status = "disabled";
 			};
 		};
 	};
@@ -1797,6 +1823,7 @@
 			st,syscfg-holdboot = <&rcc 0x10C 0x1>;
 			st,syscfg-tz = <&rcc 0x000 0x1>;
 			status = "disabled";
+			secure-status = "disabled";
 		};
 	};
 };
