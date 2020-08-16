@@ -252,6 +252,10 @@
 	};
 };
 
+&pwr_regulators {
+	status = "okay";
+};
+
 &sai2 {
 	clocks = <&rcc SAI2>, <&rcc PLL3_Q>, <&rcc PLL3_R>;
 	pinctrl-names = "default", "sleep";

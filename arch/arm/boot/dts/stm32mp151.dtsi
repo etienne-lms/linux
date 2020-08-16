@@ -23,6 +23,47 @@
 		};
 	};
 
+	scmi_sram: sram@2ffff000 {
+		compatible = "mmio-sram";
+		reg = <0x2ffff000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0 0x2ffff000 0x1000>;
+
+		scmi0_shm: scmi_shm@0 {
+			reg = <0 0x80>;
+		};
+	};
+
+	firmware {
+		scmi0: scmi-0 {
+			compatible = "arm,scmi-smc";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			arm,smc-id = <0x82002000>;
+			shmem = <&scmi0_shm>;
+
+			scmi0_voltd: protocol@17 {
+				reg = <0x17>;
+				#voltage-domain-cells = <1>;
+			};
+
+			scmi0_regu: regulators {
+				scmi_reg11: regulator_scmi0@0 {
+					compatible = "arm,regulator-scmi";
+					voltage-domains = <&scmi0_voltd 0>;
+				};
+				scmi_reg18: regulator_scmi0@1 {
+					compatible = "arm,regulator-scmi";
+					voltage-domains = <&scmi0_voltd 1>;
+				};
+				scmi_usb33: regulator_scmi0@2 {
+					compatible = "arm,regulator-scmi";
+					voltage-domains = <&scmi0_voltd 2>;
+				};
+			};
+		};
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
@@ -1106,6 +1147,7 @@
 		pwr_regulators: pwr@50001000 {
 			compatible = "st,stm32mp1,pwr-reg";
 			reg = <0x50001000 0x10>;
+			status = "disabled";
 
 			reg11: reg11 {
 				regulator-name = "reg11";

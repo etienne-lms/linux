@@ -28,7 +28,7 @@
 
 &dsi {
 	status = "okay";
-	phy-dsi-supply = <&reg18>;
+	phy-dsi-supply = <&scmi_reg18>;
 
 	ports {
 		port@0 {

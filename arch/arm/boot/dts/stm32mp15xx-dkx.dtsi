@@ -415,7 +415,7 @@
 	status = "okay";
 };
 
-&pwr_regulators {
+&scmi0_regu {
 	vdd-supply = <&vdd>;
 	vdd_3v3_usbfs-supply = <&vdd_usb>;
 };
@@ -607,14 +607,14 @@
 
 &usbphyc_port0 {
 	phy-supply = <&vdd_usb>;
-	vdda1v1-supply = <&reg11>;
-	vdda1v8-supply = <&reg18>;
+	vdda1v1-supply = <&scmi_reg11>;
+	vdda1v8-supply = <&scmi_reg18>;
 };
 
 &usbphyc_port1 {
 	phy-supply = <&vdd_usb>;
-	vdda1v1-supply = <&reg11>;
-	vdda1v8-supply = <&reg18>;
+	vdda1v1-supply = <&scmi_reg11>;
+	vdda1v8-supply = <&scmi_reg18>;
 };
 
 &vrefbuf {
