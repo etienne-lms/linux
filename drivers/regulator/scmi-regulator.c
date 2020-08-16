@@ -129,7 +129,7 @@ static int scmi_reg_set_voltage(struct regulator_dev *rdev, int min_uV,
 		return -EIO;
 
 	if (selector)
-		*selector = sreg->desc.ops->map_voltage(rdev, min_uV, min_uV);
+		*selector = sreg->desc.ops->map_voltage(rdev, min_uV, max_uV);
 
 	return 0;
 }
