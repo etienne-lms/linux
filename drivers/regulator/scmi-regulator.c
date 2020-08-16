@@ -25,6 +25,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/linear_range.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/regulator/driver.h>
@@ -226,7 +227,7 @@ static int scmi_config_linear_regulator_mappings(struct scmi_regulator *sreg,
 	} else {
 		/* Multiple linear mappings. */
 		int i, num_ranges, last_max = -1;
-		struct regulator_linear_range *lr;
+		struct linear_range *lr;
 
 		num_ranges = vinfo->num_levels / 3;
 		lr = devm_kcalloc(&sreg->sdev->dev, num_ranges,
@@ -239,20 +240,20 @@ static int scmi_config_linear_regulator_mappings(struct scmi_regulator *sreg,
 		for (i = 0; num_ranges; num_ranges--, i += 3, lr++) {
 			s32 delta_uV;
 
-			lr->min_uV =
+			lr->min =
 				vinfo->levels_uV[i + SCMI_VOLTAGE_SEGMENT_LOW];
-			lr->uV_step =
+			lr->step =
 				vinfo->levels_uV[i + SCMI_VOLTAGE_SEGMENT_STEP];
 			delta_uV =
 			    vinfo->levels_uV[i + SCMI_VOLTAGE_SEGMENT_HIGH] -
-			     lr->min_uV;
-			if (delta_uV <= 0 || !(delta_uV / lr->uV_step)) {
+			    lr->min;
+			if (delta_uV <= 0 || !(delta_uV / lr->step)) {
 				dev_err(&sreg->sdev->dev,
 					"Invalid volt-ranges for domain %s\n",
 					sreg->name);
 				return -EINVAL;
 			}
-			lr->max_sel = delta_uV / lr->uV_step - 1;
+			lr->max_sel = delta_uV / lr->step - 1;
 			lr->min_sel = last_max + 1;
 			last_max = lr->max_sel;
 		}
