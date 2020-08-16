@@ -150,13 +150,14 @@ static int scmi_voltage_descriptors_get(const struct scmi_handle *handle,
 		strlcpy(v->name, resp_dom->name, SCMI_MAX_STR_SIZE);
 
 		cmd = tl->tx.buf;
-		cmd->domain_id = cpu_to_le32(v->id);
 		/* ...then retrieve domain levels descriptions */
 		do {
 			u32 flags;
 			int cnt;
 
+			cmd->domain_id = cpu_to_le32(v->id);
 			cmd->level_index = desc_index;
+
 			ret = scmi_do_xfer(handle, tl);
 			if (ret)
 				break;
