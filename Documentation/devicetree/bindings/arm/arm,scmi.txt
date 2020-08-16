@@ -62,6 +62,15 @@ Required properties:
  - #power-domain-cells : Should be 1. Contains the device or the power
 			 domain ID value used by SCMI commands.
 
+Voltage domain bindings for the voltage domains based on SCMI Message Protocol
+------------------------------------------------------------
+
+This is a binding for the SCMI voltage domain providers.
+
+Required properties:
+ - #voltage-domain-cells : Should be 1. Contains the voltage domain ID value
+			   used by SCMI commands.
+
 Sensor bindings for the sensors based on SCMI Message Protocol
 --------------------------------------------------------------
 SCMI provides an API to access the various sensors on the SoC.
@@ -168,6 +177,11 @@ firmware {
 		scmi_reset: protocol@16 {
 			reg = <0x16>;
 			#reset-cells = <1>;
+		};
+
+		scmi_voltage: protocol@17 {
+			reg = <0x17>;
+			#voltage-domain-cells = <1>;
 		};
 	};
 };
