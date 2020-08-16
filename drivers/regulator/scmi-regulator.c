@@ -375,14 +375,17 @@ static int scmi_regulator_common_init(struct scmi_regulator *sreg)
 
 static int process_scmi_regulator_of_node(struct scmi_device *sdev,
 					  struct device_node *np,
-					  struct scmi_regulator_info *rinfo)
+					  struct scmi_regulator_info *rinfo,
+					  phandle phandle)
 {
 	int dom, ret;
 	struct of_phandle_args p_args;
 
 	ret = of_parse_phandle_with_args(np, "voltage-domains",
 					 "#voltage-domain-cells", 0, &p_args);
+
 	if (ret || p_args.args_count != 1 ||
+	    phandle != p_args.np->phandle ||
 	    p_args.args[0] >= rinfo->num_doms)
 		return ret ?: -ENODEV;
 
@@ -418,6 +421,7 @@ static int scmi_regulator_probe(struct scmi_device *sdev)
 	struct device_node *np = NULL;
 	const struct scmi_handle *handle = sdev->handle;
 	struct scmi_regulator_info *rinfo;
+	phandle phandle;
 
 	if (!handle || !handle->voltage_ops)
 		return -ENODEV;
@@ -439,13 +443,14 @@ static int scmi_regulator_probe(struct scmi_device *sdev)
 		return -ENOMEM;
 
 	rinfo->num_doms = num_doms;
+	phandle = dev_of_node(&sdev->dev)->phandle;
 	/*
 	 * Start collecting into rinfo->sregv possibly good SCMI Regulators as
 	 * described by a well-formed DT entry and associated with an existing
 	 * plausible SCMI Voltage Domain number.
 	 */
 	while ((np = of_find_compatible_node(np, NULL, "arm,regulator-scmi"))) {
-		ret = process_scmi_regulator_of_node(sdev, np, rinfo);
+		ret = process_scmi_regulator_of_node(sdev, np, rinfo, phandle);
 		/* abort on any mem issue */
 		if (ret == -ENOMEM)
 			return ret;
