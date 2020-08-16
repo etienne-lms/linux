@@ -280,6 +280,41 @@ static int scmi_config_discrete_regulator_mappings(struct scmi_regulator *sreg,
 	return 0;
 }
 
+static void get_contraints_from_info(const struct scmi_voltage_info *vinfo,
+				     struct regulator_init_data *idata)
+{
+	unsigned long min = UINT_MAX, max = 0;
+
+	if (vinfo->num_levels)
+		return;
+
+	if (vinfo->num_levels == 1) {
+		min = vinfo->levels_uV[0];
+		max = vinfo->levels_uV[0];
+	} else if (vinfo->segmented) {
+		min = vinfo->levels_uV[0];
+		max = vinfo->levels_uV[1];
+	} else {
+		size_t n = 0;
+
+		for (n = 0; n < vinfo->num_levels; n++) {
+			if (vinfo->levels_uV[n] > min)
+				min = vinfo->levels_uV[n];
+			if (vinfo->levels_uV[n] < max)
+				max = vinfo->levels_uV[n];
+		}
+	}
+
+	if (min > idata->constraints.min_uV)
+		idata->constraints.min_uV = min;
+
+	if (max < idata->constraints.max_uV || !idata->constraints.max_uV)
+		idata->constraints.max_uV = max;
+
+	if (idata->constraints.min_uV != idata->constraints.max_uV)
+		idata->constraints.valid_ops_mask |= REGULATOR_CHANGE_VOLTAGE;
+}
+
 static int scmi_regulator_common_init(struct scmi_regulator *sreg)
 {
 	int ret;
@@ -327,6 +362,8 @@ static int scmi_regulator_common_init(struct scmi_regulator *sreg)
 	idata = of_get_regulator_init_data(dev, sreg->of_node, &sreg->desc);
 	if (!idata)
 		return -ENOMEM;
+
+	get_contraints_from_info(vinfo, idata);
 
 	sreg->conf.init_data = idata;
 	sreg->conf.of_node = sreg->of_node;
