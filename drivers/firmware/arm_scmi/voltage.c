@@ -135,7 +135,8 @@ static int scmi_voltage_descriptors_get(const struct scmi_handle *handle,
 
 		/* Retrieve domain attributes at first ... */
 		put_unaligned_le32(dom, td->tx.buf);
-		ret = scmi_do_xfer(handle, td);
+
+		ret = scmi_do_xfer_again(handle, td);
 		if (ret)
 			continue;
 
@@ -158,7 +159,7 @@ static int scmi_voltage_descriptors_get(const struct scmi_handle *handle,
 			cmd->domain_id = cpu_to_le32(v->id);
 			cmd->level_index = desc_index;
 
-			ret = scmi_do_xfer(handle, tl);
+			ret = scmi_do_xfer_again(handle, tl);
 			if (ret)
 				break;
 
