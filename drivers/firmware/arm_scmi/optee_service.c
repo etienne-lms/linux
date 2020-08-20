@@ -6,6 +6,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -35,9 +36,9 @@
 /*
  * TA_CMD_GET_CHANNEL - Get channel identifer for a buffer pool
  *
- * param[0] (in value) - Message buffer physical start address
- * param[1] (in value) - Message buffer byte size
- * param[2] (out value) - value.a: Output channel identifier
+ * param[0] (in/out value) - Channel Id
+ * param[1] (in value) - Message buffer physical start address
+ * param[2] (in value) - Message buffer byte size
  * param[3] unused
  *
  * Result:
@@ -60,6 +61,18 @@
  * TEE_ERROR_BAD_PARAMETERS - Incorrect input param
  */
 #define TA_CMD_PROCESS_CHANNEL		0x2
+
+/**
+ * struct optee_scmi_channel - OP-TEE server assigns channel ID per shmem
+ * @channle_id:		Id provided by OP-TEE for the channel
+ */
+struct optee_scmi_channel {
+	uint32_t channel_id;
+	struct scmi_chan_info *cinfo;
+	struct tee_shm *tee_shm;
+	u32 session_id;
+	struct scmi_shared_mem __iomem *shmem;
+};
 
 /**
  * struct optee_scmi_agent - OP-TEE Random Number Generator private data
@@ -111,28 +124,28 @@ static int get_channel_count(void)
 	return 0;
 }
 
-static int get_channel(unsigned long pa, size_t length, int *channel_id)
+static int get_channel(u32 session_id, struct resource *res, int agent_id, int *channel_id)
 {
 	int ret = 0;
 	struct tee_ioctl_invoke_arg inv_arg;
 	struct tee_param param[4];
-	uint64_t addr = pa;
 
 	memset(&inv_arg, 0, sizeof(inv_arg));
 	memset(&param, 0, sizeof(param));
 
 	/* Invoke TA_CMD_GET_CHANNEL function of Trusted App */
 	inv_arg.func = TA_CMD_GET_CHANNEL;
-	inv_arg.session = agent_private.session_id;
+	inv_arg.session = session_id;
 	inv_arg.num_params = 4;
 
 	/* Fill invoke cmd params */
-	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT;
-	param[0].u.value.a = addr >> 32;
-	param[0].u.value.b = addr & 0xffffffff;
+	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT;
+	param[0].u.value.a = agent_id;
 	param[1].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT;
-	param[1].u.value.a = length;
-	param[2].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+	param[1].u.value.a = res->start >> 32;
+	param[1].u.value.b = res->start & 0xffffffff;
+	param[2].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT;
+	param[2].u.value.a = resource_size(res);
 
 	ret = tee_client_invoke_func(agent_private.ctx, &inv_arg, param);
 	if ((ret < 0) || (inv_arg.ret != 0)) {
@@ -141,12 +154,12 @@ static int get_channel(unsigned long pa, size_t length, int *channel_id)
 		return -ENOTSUPP;
 	}
 
-	*channel_id = param[2].u.value.a;
+	*channel_id = param[0].u.value.a;
 
 	return 0;
 }
 
-static int process_event(unsigned int channel_id)
+static int process_event(struct optee_scmi_channel *channel)
 {
 	int ret = 0;
 	struct tee_ioctl_invoke_arg inv_arg;
@@ -157,32 +170,33 @@ static int process_event(unsigned int channel_id)
 
 	/* Invoke TA_CMD_PROCESS_CHANNEL function of Trusted App */
 	inv_arg.func = TA_CMD_PROCESS_CHANNEL;
-	inv_arg.session = agent_private.session_id;
+	inv_arg.session = channel->session_id;
 	inv_arg.num_params = 4;
 
 	/* Fill invoke cmd params */
 	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT;
-	param[0].u.value.a = channel_id;
+	param[0].u.value.a = channel->session_id;
+
+	if (channel->tee_shm) {
+		param[1] = (struct tee_param) {
+			.attr = TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INOUT,
+			.u.memref = {
+				.shm = channel->tee_shm,
+				.size = scmi_optee_desc.max_msg_size,
+				.shm_offs = 0, //xfer->hdr.seq * scmi_optee_desc.max_msg_size,
+			},
+		};
+	}
 
 	ret = tee_client_invoke_func(agent_private.ctx, &inv_arg, param);
 	if ((ret < 0) || (inv_arg.ret != 0)) {
 		dev_err(agent_private.dev, "Failed on channel %u: 0x%x\n",
-			channel_id, inv_arg.ret);
+			channel->channel_id, inv_arg.ret);
 		return -EIO;
 	}
 
 	return 0;
 }
-
-/**
- * struct optee_scmi_channel - OP-TEE server assigns channel ID per shmem
- * @channle_id:		Id provided by OP-TEE for the channel
- */
-struct optee_scmi_channel {
-	uint32_t agent_id;
-	struct scmi_chan_info *cinfo;
-	struct scmi_shared_mem __iomem *shmem;
-};
 
 static bool optee_chan_available(struct device *dev, int idx)
 {
@@ -191,11 +205,16 @@ static bool optee_chan_available(struct device *dev, int idx)
 	return of_property_read_u32(dev->of_node, "agent-id", &agent_id) == 0;
 }
 
-static int optee_scmi_get_channel(struct device *dev, struct resource *res,
-				  struct optee_scmi_channel *channel)
+static int optee_scmi_get_channel(struct device *dev,
+				  struct optee_scmi_channel *channel,
+				  struct resource *res, int agent_id)
 {
-	int ret;
+	struct tee_client_device *scmi_device = NULL;
+	struct tee_ioctl_open_session_arg sess_arg = { };
 	unsigned int id = 0;
+	int ret = 0;
+
+	scmi_device = to_tee_client_device(agent_private.dev)
 
 	if (!agent_private.ctx)
 		return -EPROBE_DEFER;
@@ -203,12 +222,142 @@ static int optee_scmi_get_channel(struct device *dev, struct resource *res,
 	if (!agent_private.agent_count)
 		return -ENOENT;
 
-	ret = get_channel(res->start, resource_size(res), &id);
-	if (ret)
-		return ret;
+	/* Get channel's session */
+	memset(&sess_arg, 0, sizeof(sess_arg));
 
-	if (channel->agent_id != id)
-		dev_warn(dev, "Channel ID mismatch\n");
+	/* Open session with SCMI server TA */
+	memcpy(sess_arg.uuid, scmi_device->id.uuid.b, TEE_IOCTL_UUID_LEN);
+	sess_arg.clnt_login = TEE_IOCTL_LOGIN_PUBLIC;
+	sess_arg.num_params = 0;
+
+	ret = tee_client_open_session(agent_private.ctx, &sess_arg, NULL);
+	if ((ret < 0) || (sess_arg.ret != 0)) {
+		dev_err(dev, "tee_client_open_session failed, err: %x\n",
+			sess_arg.ret);
+		return ret;
+	}
+
+	channel->session_id = sess_arg.session;
+
+	/* Get scmi agent id */
+	ret = get_channel(channel->session_id, res, agent_id, &id);
+	if (ret) {
+		tee_client_close_session(agent_private.ctx, sess_arg.session);
+		return ret;
+	}
+
+	channel->channel_id = id;
+
+	return 0;
+}
+
+static int optee_chan_setup_shm(struct scmi_chan_info *cinfo,
+				struct device_node *shmem,
+				struct optee_scmi_channel *channel)
+{
+	struct device *cdev = cinfo->dev;
+	resource_size_t size;
+	struct resource res;
+	int ret;
+
+	ret = of_address_to_resource(shmem, 0, &res);
+	of_node_put(shmem);
+	if (ret) {
+		dev_err(cdev, "failed to get SCMI shared memory\n");
+		return ret;
+	}
+
+	/* Get channel IDs from shm location */
+	ret = optee_scmi_get_channel(cdev, channel, &res, 0);
+	if (ret) {
+		dev_err(cdev, "failed to get OP-TEE channel %d\n", ret);
+		return ret;
+	}
+
+	size = resource_size(&res);
+	channel->shmem = devm_ioremap(cdev, res.start, size);
+	if (!channel->shmem) {
+		dev_err(cdev, "failed to ioremap SCMI shared memory\n");
+		return -EADDRNOTAVAIL;
+	}
+
+	return 0;
+}
+
+static int optee_chan_setup_reserved(struct scmi_chan_info *cinfo,
+		struct device_node *mem,
+		struct optee_scmi_channel *channel)
+{
+	struct device *cdev = cinfo->dev;
+	struct reserved_mem *rmem;
+	struct resource res;
+	void* va;
+	int ret;
+
+	/* Convert memory region to a struct resource */
+	ret = of_address_to_resource(mem, 0, &res);
+	if (ret) {
+		dev_err(cdev, "failed to get SCMI reserved memory-region\n");
+		return -EINVAL;
+	}
+
+	rmem = of_reserved_mem_lookup(mem);
+
+	of_node_put(mem);
+	if (!rmem) {
+		dev_err(cdev, "unable to acquire memory-region\n");
+		return -EINVAL;
+	}
+
+	/* Get channel IDs from reserved location */
+	ret = optee_scmi_get_channel(cdev, channel, &res, 0);
+	if (ret) {
+		dev_err(cdev, "failed to get OP-TEE channel %d\n", ret);
+		return ret;
+	}
+
+	/* remap the shared memory */
+	va = memremap(rmem->base, rmem->size, MEMREMAP_WB);
+	if (!va) {
+		dev_err(cdev, "Failed to remap reserved memory 0x%llx\n",
+			rmem->base);
+		return -EINVAL;
+	}
+
+	channel->shmem = va;
+
+	return 0;
+}
+
+static int optee_chan_setup_dynamic(struct scmi_chan_info *cinfo,
+		unsigned int agent_id,
+		struct optee_scmi_channel *channel)
+{
+	struct device *cdev = cinfo->dev;
+	struct resource res;
+	int ret;
+
+	/* Resource will be dynamically allocated */
+	res.start = res.end = 0;
+
+	/* Get channel IDs from reserved location */
+	ret = optee_scmi_get_channel(cdev, channel, &res, agent_id);
+	if (ret) {
+		dev_err(cdev, "failed to get OP-TEE channel %d\n", ret);
+		return ret;
+	}
+
+	/* Allocate dynamic shared memory */
+	channel->tee_shm = tee_shm_alloc(agent_private.ctx,
+					 scmi_optee_desc.max_msg_size *
+					 scmi_optee_desc.max_msg,
+					 TEE_SHM_MAPPED);
+	if (IS_ERR(channel->tee_shm)) {
+		dev_err(cdev, "%s: tee_shm_alloc failed\n", __func__);
+		return -ENOMEM;
+	}
+
+	channel->shmem = tee_shm_get_va(channel->tee_shm, 0);
 
 	return 0;
 }
@@ -216,54 +365,46 @@ static int optee_scmi_get_channel(struct device *dev, struct resource *res,
 static int optee_chan_setup(struct scmi_chan_info *cinfo, struct device *dev,
 			    bool tx)
 {
-	const char *desc = tx ? "Tx" : "Rx";
-	int idx = tx ? 0 : 1;
 	struct device *cdev = cinfo->dev;
 	struct optee_scmi_channel *channel;
-	u32 agent_id;
-	struct device_node *shmem;
-	resource_size_t size;
-	struct resource res;
-	int ret;
+	struct device_node *mem;
+	int ret, idx = tx ? 0 : 1;
+	unsigned int agent;
 
 	channel = devm_kzalloc(dev, sizeof(*channel), GFP_KERNEL);
 	if (!channel)
 		return -ENOMEM;
 
-	if (of_property_read_u32(dev->of_node, "agent-id", &agent_id)) {
-	        dev_err(dev, "Missing \"agent-id\" property\n");
-		return -EINVAL;
-	}
-	channel->agent_id = agent_id;
+	mem = of_parse_phandle(cdev->of_node, "shmem", idx);
+	if (mem) {
+		ret = optee_chan_setup_shm(cinfo, mem, channel);
+		if (ret)
+			return ret;
 
-	// TODO: remove this: push buffer in invocation memeref parameter
-	shmem = of_parse_phandle(cdev->of_node, "shmem", idx);
-	if (!shmem) {
-		dev_err(cdev, "OPTEE failed to get SCMI %s shm\n", desc);
-		return -ENOENT;
+		goto chnl_found;
 	}
 
-	ret = of_address_to_resource(shmem, 0, &res);
-	of_node_put(shmem);
-	if (ret) {
-		dev_err(cdev, "failed to get SCMI %s shared memory\n", desc);
-		return ret;
+	mem = of_parse_phandle(cdev->of_node, "memory-region", idx);
+	if (mem) {
+		ret = optee_chan_setup_reserved(cinfo, mem, channel);
+		if (ret)
+			return ret;
+
+		goto chnl_found;
 	}
 
-	/* Get channel IDs from shm location */
-	ret = optee_scmi_get_channel(dev, &res, channel);
-	if (ret) {
-		dev_err(dev, "failed to get OP-TEE channel %d\n", ret);
-		return ret;
+	ret = of_property_read_u32(cdev->of_node, "agent-id", &agent);
+	if (tx && !ret) {
+		ret = optee_chan_setup_dynamic(cinfo, agent, channel);
+		if (ret)
+			return ret;
+
+		goto chnl_found;
 	}
 
-	size = resource_size(&res);
-	channel->shmem = devm_ioremap(dev, res.start, size);
-	if (!channel->shmem) {
-		dev_err(dev, "failed to ioremap SCMI %s shared memory\n", desc);
-		return -EADDRNOTAVAIL;
-	}
+	return -EINVAL;
 
+chnl_found:
 	cinfo->transport_info = channel;
 	channel->cinfo = cinfo;
 
@@ -294,7 +435,7 @@ static int optee_send_message(struct scmi_chan_info *cinfo,
 
 	shmem_tx_prepare(channel->shmem, xfer);
 
-	ret = process_event(channel->agent_id);
+	ret = process_event(channel);
 	if (ret)
 		return ret;
 
