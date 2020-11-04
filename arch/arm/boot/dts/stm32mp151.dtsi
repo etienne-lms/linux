@@ -544,7 +544,7 @@
 			compatible = "st,stm32-cec";
 			reg = <0x40016000 0x400>;
 			interrupts = <GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc CEC_K>, <&clk_lse>;
+			clocks = <&rcc CEC_K>, <&scmi0_clk CK_SCMI0_LSE>;
 			clock-names = "cec", "hdmi-cec";
 			status = "disabled";
 		};
@@ -1105,10 +1105,16 @@
 		};
 
 		rcc: rcc@50000000 {
-			compatible = "st,stm32mp1-rcc", "syscon";
+			compatible = "st,stm32mp1-rcc-secure", "st,stm32mp1-rcc", "syscon";
 			reg = <0x50000000 0x1000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			clock-names = "hse", "hsi", "csi", "lse", "lsi";
+			clocks = <&scmi0_clk CK_SCMI0_HSE>,
+				 <&scmi0_clk CK_SCMI0_HSI>,
+				 <&scmi0_clk CK_SCMI0_CSI>,
+				 <&scmi0_clk CK_SCMI0_LSE>,
+				 <&scmi0_clk CK_SCMI0_LSI>;
 		};
 
 		pwr_regulators: pwr@50001000 {
@@ -1283,8 +1289,8 @@
 			compatible = "st,stm32f756-hash";
 			reg = <0x54002000 0x400>;
 			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc HASH1>;
-			resets = <&rcc HASH1_R>;
+			clocks = <&scmi0_clk CK_SCMI0_HASH1>;
+			resets = <&scmi0_reset RST_SCMI0_HASH1>;
 			dmas = <&mdma1 31 0x10 0x1000A02 0x0 0x0>;
 			dma-names = "in";
 			dma-maxburst = <2>;
@@ -1294,8 +1300,8 @@
 		rng1: rng@54003000 {
 			compatible = "st,stm32-rng";
 			reg = <0x54003000 0x400>;
-			clocks = <&rcc RNG1_K>;
-			resets = <&rcc RNG1_R>;
+			clocks = <&scmi0_clk CK_SCMI0_RNG1>;
+			resets = <&scmi0_reset RST_SCMI0_RNG1>;
 			status = "disabled";
 		};
 
@@ -1304,7 +1310,7 @@
 			reg = <0x58000000 0x1000>;
 			interrupts = <GIC_SPI 122 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc MDMA>;
-			resets = <&rcc MDMA_R>;
+			resets = <&scmi0_reset RST_SCMI0_MDMA>;
 			#dma-cells = <5>;
 			dma-channels = <32>;
 			dma-requests = <48>;
@@ -1450,7 +1456,7 @@
 		iwdg2: watchdog@5a002000 {
 			compatible = "st,stm32mp1-iwdg";
 			reg = <0x5a002000 0x400>;
-			clocks = <&rcc IWDG2>, <&rcc CK_LSI>;
+			clocks = <&rcc IWDG2>, <&scmi0_clk CK_SCMI0_LSI>;
 			clock-names = "pclk", "lsi";
 			status = "disabled";
 		};
@@ -1489,8 +1495,8 @@
 			compatible = "st,stm32h7-spi";
 			reg = <0x5c001000 0x400>;
 			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc SPI6_K>;
-			resets = <&rcc SPI6_R>;
+			clocks = <&scmi0_clk CK_SCMI0_SPI6>;
+			resets = <&scmi0_reset RST_SCMI0_SPI6>;
 			dmas = <&mdma1 34 0x0 0x40008 0x0 0x0>,
 			       <&mdma1 35 0x0 0x40002 0x0 0x0>;
 			dma-names = "rx", "tx";
@@ -1503,8 +1509,8 @@
 			interrupt-names = "event", "error";
 			interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc I2C4_K>;
-			resets = <&rcc I2C4_R>;
+			clocks = <&scmi0_clk CK_SCMI0_I2C4>;
+			resets = <&scmi0_reset RST_SCMI0_I2C4>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			st,syscfg-fmp = <&syscfg 0x4 0x8>;
@@ -1515,7 +1521,7 @@
 		rtc: rtc@5c004000 {
 			compatible = "st,stm32mp1-rtc";
 			reg = <0x5c004000 0x400>;
-			clocks = <&rcc RTCAPB>, <&rcc RTC>;
+			clocks = <&scmi0_clk CK_SCMI0_RTCAPB>, <&scmi0_clk CK_SCMI0_RTC>;
 			clock-names = "pclk", "rtc_ck";
 			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
@@ -1540,8 +1546,8 @@
 			interrupt-names = "event", "error";
 			interrupts = <GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc I2C6_K>;
-			resets = <&rcc I2C6_R>;
+			clocks = <&scmi0_clk CK_SCMI0_I2C6>;
+			resets = <&scmi0_reset RST_SCMI0_I2C6>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			st,syscfg-fmp = <&syscfg 0x4 0x20>;
@@ -1699,7 +1705,7 @@
 				interrupt-controller;
 				#interrupt-cells = <2>;
 				reg = <0 0x400>;
-				clocks = <&rcc GPIOZ>;
+				clocks = <&scmi0_clk CK_SCMI0_GPIOZ>;
 				st,bank-name = "GPIOZ";
 				st,bank-ioport = <11>;
 				status = "disabled";
