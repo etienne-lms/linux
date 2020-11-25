@@ -101,6 +101,7 @@
 	pinctrl-1 = <&usart2_sleep_pins_c>;
 	pinctrl-2 = <&usart2_idle_pins_c>;
 	status = "disabled";
+};
 
 &optee {
 	status = "okay";
