@@ -50,15 +50,13 @@
 			compatible = "linaro,scmi-optee";
 			#address-cells = <1>;
 			#size-cells = <0>;
-
-			agent-id = <0>;
-			/* Temporary rely on a static shared memory */
-			shmem = <&scmi0_shm>;
+			agent-id = <1>;
 
 			scmi0_clk: protocol@14 {
 				reg = <0x14>;
 				#clock-cells = <1>;
 			};
+
 			scmi0_reset: protocol@16 {
 				reg = <0x16>;
 				#reset-cells = <1>;
@@ -69,11 +67,7 @@
 			compatible = "linaro,scmi-optee";
 			#address-cells = <1>;
 			#size-cells = <0>;
-
-			agent-id = <1>;
-			/* Temporary rely on a static shared memory */
-			shmem = <&scmi1_shm>;
-
+			agent-id = <2>;
 			/* Default disable since stm32mp15x RCC[MCKPROT]=0 */
 			status = "disabled";
 
