@@ -5,6 +5,7 @@
  */
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/stm32mp1-clks.h>
+#include <dt-bindings/regulator/st,stm32mp15-regulator.h>
 #include <dt-bindings/reset/stm32mp1-resets.h>
 
 / {
@@ -69,6 +70,36 @@
 			scmi0_reset: protocol@16 {
 				reg = <0x16>;
 				#reset-cells = <1>;
+			};
+
+			scmi0_voltd: protocol@17 {
+				reg = <0x17>;
+
+				scmi0_reguls: regulators {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					reg11: reg11 {
+						voltd-name = "reg11";
+						regulator-name = "reg11";
+						regulator-min-microvolt = <1100000>;
+						regulator-max-microvolt = <1100000>;
+					};
+
+					reg18: reg18 {
+						voltd-name = "reg18";
+						regulator-name = "reg18";
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+
+					usb33: usb33 {
+						voltd-name = "usb33";
+						regulator-name = "usb33";
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+					};
+				};
 			};
 		};
 
@@ -1172,22 +1203,22 @@
 		};
 
 		pwr_regulators: pwr@50001000 {
-			compatible = "st,stm32mp1,pwr-reg";
+			compatible = "st,stm32mp1,pwr-reg-secure";
 			reg = <0x50001000 0x10>;
 
-			reg11: reg11 {
+			pwr_reg11: reg11 {
 				regulator-name = "reg11";
 				regulator-min-microvolt = <1100000>;
 				regulator-max-microvolt = <1100000>;
 			};
 
-			reg18: reg18 {
+			pwr_reg18: reg18 {
 				regulator-name = "reg18";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 			};
 
-			usb33: usb33 {
+			pwr_usb33: usb33 {
 				regulator-name = "usb33";
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
