@@ -106,3 +106,8 @@
 &optee {
 	status = "okay";
 };
+
+&scmi0 {
+	compatible = "linaro,scmi-optee";
+	status = "okay";
+};

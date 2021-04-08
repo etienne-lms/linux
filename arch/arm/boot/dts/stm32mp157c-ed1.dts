@@ -311,6 +311,11 @@
 	status = "okay";
 };
 
+&scmi0 {
+	compatible = "linaro,scmi-optee";
+	status = "okay";
+};
+
 &sdmmc1 {
 	pinctrl-names = "default", "opendrain", "sleep";
 	pinctrl-0 = <&sdmmc1_b4_pins_a &sdmmc1_dir_pins_a>;
