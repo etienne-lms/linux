@@ -1003,8 +1003,11 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 	rpmb_ioctl = (mq_rq->drv_op == MMC_DRV_OP_IOCTL_RPMB);
 
 	switch (mq_rq->drv_op) {
-	case MMC_DRV_OP_IOCTL:
 	case MMC_DRV_OP_IOCTL_RPMB:
+		pr_notice("%s:%u: mmc/rpmb ioctl (%d xfer)\n",
+			  __FILE__, __LINE__, mq_rq->ioc_count);
+		fallthrough;
+	case MMC_DRV_OP_IOCTL:
 		idata = mq_rq->drv_op_data;
 		for (i = 0, ret = 0; i < mq_rq->ioc_count; i++) {
 			ret = __mmc_blk_ioctl_cmd(card, md, idata[i]);
