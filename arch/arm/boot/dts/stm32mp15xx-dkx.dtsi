@@ -6,6 +6,7 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/mfd/st,stpmic1.h>
+#include <dt-bindings/regulator/st,stm32mp15-regulator.h>
 
 / {
 	memory@c0000000 {
@@ -241,7 +242,9 @@
 	i2c-scl-rising-time-ns = <185>;
 	i2c-scl-falling-time-ns = <20>;
 	clock-frequency = <400000>;
-	status = "okay";
+	status = "disabled";
+	secure-status = "okay";
+
 	/* spare dmas for other usage */
 	/delete-property/dmas;
 	/delete-property/dma-names;
@@ -253,7 +256,7 @@
 		interrupt-parent = <&gpioi>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&stusb1600_pins_a>;
-		status = "okay";
+		status = "disabled";
 		vdd-supply = <&vin>;
 
 		connector {
@@ -276,7 +279,8 @@
 		interrupts-extended = <&gpioa 0 IRQ_TYPE_EDGE_FALLING>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
-		status = "okay";
+		status = "disabled";
+		secure-status = "okay";
 
 		regulators {
 			compatible = "st,stpmic1-regulators";
@@ -284,18 +288,18 @@
 			buck2-supply = <&vin>;
 			buck3-supply = <&vin>;
 			buck4-supply = <&vin>;
-			ldo1-supply = <&v3v3>;
+			ldo1-supply = <&secure_v3v3>;
 			ldo2-supply = <&vin>;
-			ldo3-supply = <&vdd_ddr>;
+			ldo3-supply = <&secure_vdd_ddr>;
 			ldo4-supply = <&vin>;
 			ldo5-supply = <&vin>;
-			ldo6-supply = <&v3v3>;
+			ldo6-supply = <&secure_v3v3>;
 			vref_ddr-supply = <&vin>;
 			boost-supply = <&vin>;
-			pwr_sw1-supply = <&bst_out>;
-			pwr_sw2-supply = <&bst_out>;
+			pwr_sw1-supply = <&secure_bst_out>;
+			pwr_sw2-supply = <&secure_bst_out>;
 
-			vddcore: buck1 {
+			secure_vddcore: buck1 {
 				regulator-name = "vddcore";
 				regulator-min-microvolt = <1200000>;
 				regulator-max-microvolt = <1350000>;
@@ -304,7 +308,7 @@
 				regulator-over-current-protection;
 			};
 
-			vdd_ddr: buck2 {
+			secure_vdd_ddr: buck2 {
 				regulator-name = "vdd_ddr";
 				regulator-min-microvolt = <1350000>;
 				regulator-max-microvolt = <1350000>;
@@ -313,7 +317,7 @@
 				regulator-over-current-protection;
 			};
 
-			vdd: buck3 {
+			secure_vdd: buck3 {
 				regulator-name = "vdd";
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
@@ -323,7 +327,7 @@
 				regulator-over-current-protection;
 			};
 
-			v3v3: buck4 {
+			secure_v3v3: buck4 {
 				regulator-name = "v3v3";
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
@@ -332,7 +336,7 @@
 				regulator-initial-mode = <0>;
 			};
 
-			v1v8_audio: ldo1 {
+			secure_v1v8_audio: ldo1 {
 				regulator-name = "v1v8_audio";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
@@ -340,7 +344,7 @@
 				interrupts = <IT_CURLIM_LDO1 0>;
 			};
 
-			v3v3_hdmi: ldo2 {
+			secure_v3v3_hdmi: ldo2 {
 				regulator-name = "v3v3_hdmi";
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
@@ -348,7 +352,7 @@
 				interrupts = <IT_CURLIM_LDO2 0>;
 			};
 
-			vtt_ddr: ldo3 {
+			secure_vtt_ddr: ldo3 {
 				regulator-name = "vtt_ddr";
 				regulator-min-microvolt = <500000>;
 				regulator-max-microvolt = <750000>;
@@ -356,12 +360,12 @@
 				regulator-over-current-protection;
 			};
 
-			vdd_usb: ldo4 {
+			secure_vdd_usb: ldo4 {
 				regulator-name = "vdd_usb";
 				interrupts = <IT_CURLIM_LDO4 0>;
 			};
 
-			vdda: ldo5 {
+			secure_vdda: ldo5 {
 				regulator-name = "vdda";
 				regulator-min-microvolt = <2900000>;
 				regulator-max-microvolt = <2900000>;
@@ -369,7 +373,7 @@
 				regulator-boot-on;
 			};
 
-			v1v2_hdmi: ldo6 {
+			secure_v1v2_hdmi: ldo6 {
 				regulator-name = "v1v2_hdmi";
 				regulator-min-microvolt = <1200000>;
 				regulator-max-microvolt = <1200000>;
@@ -377,22 +381,22 @@
 				interrupts = <IT_CURLIM_LDO6 0>;
 			};
 
-			vref_ddr: vref_ddr {
+			secure_vref_ddr: vref_ddr {
 				regulator-name = "vref_ddr";
 				regulator-always-on;
 			};
 
-			 bst_out: boost {
+			secure_bst_out: boost {
 				regulator-name = "bst_out";
 				interrupts = <IT_OCP_BOOST 0>;
 			 };
 
-			vbus_otg: pwr_sw1 {
+			secure_vbus_otg: pwr_sw1 {
 				regulator-name = "vbus_otg";
 				interrupts = <IT_OCP_OTG 0>;
 			 };
 
-			 vbus_sw: pwr_sw2 {
+			secure_vbus_sw: pwr_sw2 {
 				regulator-name = "vbus_sw";
 				interrupts = <IT_OCP_SWOUT 0>;
 				regulator-active-discharge = <1>;
@@ -532,6 +536,84 @@
 				dai-tdm-slot-width = <32>;
 			};
 		};
+	};
+};
+
+&scmi_reguls {
+	vddcore: scmi-vddcore {
+		reg = <VOLTD_SCMI0_STPMIC1_BUCK1>;
+		regulator-name = "vddcore";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-always-on;
+	};
+
+	vdd: scmi-vdd {
+		reg = <VOLTD_SCMI0_STPMIC1_BUCK3>;
+		regulator-name = "vdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	v3v3: scmi-v3v3 {
+		reg = <VOLTD_SCMI0_STPMIC1_BUCK4>;
+		regulator-name = "v3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	v1v8_audio: scmi-v1v8-audio {
+		reg = <VOLTD_SCMI0_STPMIC1_LDO1>;
+		regulator-name = "v1v8_audio";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+	};
+
+	v3v3_hdmi: scmi-v3v3-hdmi {
+		reg = <VOLTD_SCMI0_STPMIC1_LDO2>;
+		regulator-name = "v3v3_hdmi";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	vdd_usb: scmi-vdd-usb {
+		reg = <VOLTD_SCMI0_STPMIC1_LDO4>;
+		regulator-name = "vdd_usb";
+	};
+
+	vdda: scmi-vdda {
+		reg = <VOLTD_SCMI0_STPMIC1_LDO5>;
+		regulator-name = "vdda";
+		regulator-min-microvolt = <2900000>;
+		regulator-max-microvolt = <2900000>;
+		regulator-boot-on;
+	};
+
+	v1v2_hdmi: scmi-v1v2-hdmi {
+		reg = <VOLTD_SCMI0_STPMIC1_LDO6>;
+		regulator-name = "v1v2_hdmi";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-always-on;
+	};
+
+	bst_out: scmi-bst-out {
+		reg = <VOLTD_SCMI0_STPMIC1_BOOST>;
+		regulator-name = "bst_out";
+	};
+
+	vbus_otg: scmi-vbus-otg {
+		reg = <VOLTD_SCMI0_STPMIC1_PWR_SW1>;
+		regulator-name = "vbus_otg";
+	};
+
+	vbus_sw: scmi-vbus-sw {
+		reg = <VOLTD_SCMI0_STPMIC1_PWR_SW2>;
+		regulator-name = "vbus_sw";
 	};
 };
 

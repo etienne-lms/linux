@@ -115,3 +115,7 @@
 	compatible = "linaro,scmi-optee";
 	status = "okay";
 };
+
+&scmi_reguls {
+	status = "okay";
+};
